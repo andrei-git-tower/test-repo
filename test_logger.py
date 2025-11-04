@@ -5,6 +5,7 @@ Unit tests for the logger module.
 import unittest
 import logging
 import os
+import tempfile
 import shutil
 from pathlib import Path
 from logger import setup_logger, get_logger, ColoredFormatter
@@ -15,6 +16,30 @@ class TestColoredFormatter(unittest.TestCase):
 
     def setUp(self):
         self.formatter = ColoredFormatter('%(levelname)s - %(message)s')
+
+    def test_cached_level_names_performance(self):
+        """Test that ColoredFormatter caches level names for performance."""
+        # Clear cache if it exists
+        ColoredFormatter._cached_level_names.clear()
+
+        record = logging.LogRecord(
+            name='test',
+            level=logging.INFO,
+            pathname='test.py',
+            lineno=1,
+            msg='Test message',
+            args=(),
+            exc_info=None
+        )
+
+        # First format should populate cache
+        self.formatter.format(record)
+        self.assertIn('INFO', ColoredFormatter._cached_level_names)
+
+        # Second format should use cached value
+        cached_value = ColoredFormatter._cached_level_names['INFO']
+        self.formatter.format(record)
+        self.assertEqual(cached_value, ColoredFormatter._cached_level_names['INFO'])
 
     def test_format_includes_color_codes(self):
         """Test that formatter adds ANSI color codes to log records."""
@@ -52,19 +77,21 @@ class TestLoggerSetup(unittest.TestCase):
     """Test cases for logger setup and configuration."""
 
     def setUp(self):
-        self.test_log_dir = 'test_logs'
-        self.logger_name = 'test_logger'
+        # Use tempfile for safer test directory handling
+        self.test_log_dir = tempfile.mkdtemp(prefix='test_logs_')
+        self.logger_name = f'test_logger_{id(self)}'  # Unique name per test instance
 
     def tearDown(self):
-        # Clean up test logs
-        if os.path.exists(self.test_log_dir):
-            shutil.rmtree(self.test_log_dir)
-
-        # Remove handlers from logger
+        # Remove handlers from logger first
         logger = logging.getLogger(self.logger_name)
         for handler in logger.handlers[:]:
             handler.close()
             logger.removeHandler(handler)
+
+        # Clean up test logs directory
+        # tempfile.mkdtemp guarantees unique directory, safe to remove
+        if os.path.exists(self.test_log_dir):
+            shutil.rmtree(self.test_log_dir)
 
     def test_setup_logger_creates_instance(self):
         """Test that setup_logger returns a valid logger instance."""
