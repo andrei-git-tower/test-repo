@@ -101,11 +101,20 @@ log_level: WARNING
 
         loader = ConfigLoader()
 
-        with patch('config.yaml', side_effect=ImportError):
+        # Simulate ImportError when trying to import yaml module
+        import builtins
+        real_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == 'yaml':
+                raise ImportError("No module named 'yaml'")
+            return real_import(name, *args, **kwargs)
+
+        with patch('builtins.__import__', side_effect=mock_import):
             with self.assertRaises(ImportError) as cm:
                 loader.load_from_file()
             self.assertIn('PyYAML is required', str(cm.exception))
-            self.assertIn('pip install pyyaml', str(cm.exception))
+            self.assertIn('pip install pyyaml', str(cm.exception).lower())
 
     def test_explicit_config_path(self):
         """Test loading config from explicit path."""
@@ -239,6 +248,72 @@ log_level: WARNING
             self.assertIsInstance(config, ConfigLoader)
             self.assertEqual(config.get('timeout'), 100)
             self.assertEqual(config.get('cache_size'), 1024)
+
+    def test_validation_string_to_int_conversion(self):
+        """Test that string values are converted to integers when needed."""
+        config_file = Path(self.temp_dir) / '.cli-tool.json'
+        with open(config_file, 'w') as f:
+            json.dump({'timeout': '50'}, f)
+
+        loader = ConfigLoader()
+        loader.load_from_file()
+
+        # Should convert string "50" to int 50
+        self.assertEqual(loader.get('timeout'), 50)
+        self.assertIsInstance(loader.get('timeout'), int)
+
+    def test_validation_invalid_integer(self):
+        """Test that invalid integer values raise helpful errors."""
+        config_file = Path(self.temp_dir) / '.cli-tool.json'
+        with open(config_file, 'w') as f:
+            json.dump({'timeout': 'not a number'}, f)
+
+        loader = ConfigLoader()
+        with self.assertRaises(ValueError) as cm:
+            loader.load_from_file()
+
+        error_msg = str(cm.exception)
+        self.assertIn('timeout', error_msg)
+        self.assertIn('not a number', error_msg)
+
+    def test_validation_negative_value(self):
+        """Test that negative values for numeric fields are rejected."""
+        config_file = Path(self.temp_dir) / '.cli-tool.json'
+        with open(config_file, 'w') as f:
+            json.dump({'timeout': -10}, f)
+
+        loader = ConfigLoader()
+        with self.assertRaises(ValueError) as cm:
+            loader.load_from_file()
+
+        self.assertIn('must be positive', str(cm.exception))
+
+    def test_validation_invalid_log_level(self):
+        """Test that invalid log levels are rejected with helpful message."""
+        config_file = Path(self.temp_dir) / '.cli-tool.json'
+        with open(config_file, 'w') as f:
+            json.dump({'log_level': 'INVALID'}, f)
+
+        loader = ConfigLoader()
+        with self.assertRaises(ValueError) as cm:
+            loader.load_from_file()
+
+        error_msg = str(cm.exception)
+        self.assertIn('log_level', error_msg)
+        self.assertIn('INVALID', error_msg)
+        self.assertIn('DEBUG', error_msg)  # Should list valid options
+
+    def test_validation_log_level_case_normalization(self):
+        """Test that log levels are normalized to uppercase."""
+        config_file = Path(self.temp_dir) / '.cli-tool.json'
+        with open(config_file, 'w') as f:
+            json.dump({'log_level': 'debug'}, f)
+
+        loader = ConfigLoader()
+        loader.load_from_file()
+
+        # Should normalize to uppercase
+        self.assertEqual(loader.get('log_level'), 'DEBUG')
 
 
 if __name__ == '__main__':

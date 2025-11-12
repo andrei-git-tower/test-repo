@@ -56,6 +56,66 @@ class ConfigLoader:
             'log_level': DEFAULT_LOG_LEVEL,
         }
 
+    def _validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validate configuration values and provide helpful error messages.
+
+        Args:
+            config: Configuration dictionary to validate
+
+        Returns:
+            Validated configuration dictionary
+
+        Raises:
+            ValueError: If configuration contains invalid values
+        """
+        validated = {}
+
+        for key, value in config.items():
+            try:
+                # Integer fields
+                if key in ['timeout', 'cache_size', 'max_file_size']:
+                    if not isinstance(value, int):
+                        validated[key] = int(value)
+                    elif value <= 0:
+                        raise ValueError(f"{key} must be positive, got {value}")
+                    else:
+                        validated[key] = value
+
+                # Boolean fields
+                elif key == 'enable_cache':
+                    if isinstance(value, bool):
+                        validated[key] = value
+                    elif isinstance(value, str):
+                        validated[key] = value.lower() in ['true', '1', 'yes']
+                    else:
+                        validated[key] = bool(value)
+
+                # String fields with valid options
+                elif key == 'log_level':
+                    if value.upper() not in ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']:
+                        raise ValueError(
+                            f"Invalid log_level '{value}'. "
+                            "Must be one of: DEBUG, INFO, WARNING, ERROR, CRITICAL"
+                        )
+                    validated[key] = value.upper()
+
+                # String fields
+                elif key in ['version', 'app_name', 'default_format']:
+                    validated[key] = str(value)
+
+                # Unknown fields pass through
+                else:
+                    validated[key] = value
+
+            except (ValueError, TypeError) as e:
+                raise ValueError(
+                    f"Invalid value for configuration key '{key}': {value}. "
+                    f"Error: {e}"
+                )
+
+        return validated
+
     def _find_config_file(self) -> Optional[Path]:
         """
         Search for configuration file in current directory and parent directories.
@@ -122,8 +182,9 @@ class ConfigLoader:
         else:
             raise ValueError(f"Unsupported config file format: {config_file.suffix}")
 
-        # Merge file config (overrides defaults)
-        self._config.update(file_config)
+        # Validate and merge file config (overrides defaults)
+        validated_config = self._validate_config(file_config)
+        self._config.update(validated_config)
         return self
 
     def load_from_env(self) -> 'ConfigLoader':
