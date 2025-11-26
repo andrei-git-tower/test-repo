@@ -1,0 +1,24 @@
+# Example configuration file for CLI Tool
+# Copy this file to .cli-tool.yaml and customize as needed
+
+# Application settings
+app_name: "CLI Tool"
+version: "0.2.1"
+
+# Timeout for operations (seconds)
+timeout: 30
+
+# Cache configuration
+enable_cache: true
+cache_size: 128
+
+# Maximum file size to process (bytes)
+# 1MB = 1048576 bytes
+max_file_size: 1048576
+
+# Logging configuration
+log_level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+# Output preferences
+default_format: "txt"  # Options: txt, json, csv
+verbose: false
