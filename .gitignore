@@ -13,3 +13,8 @@ venv/
 # Logging
 logs/
 *.log
+
+# Local configuration files (may contain secrets)
+.cli-tool.yaml
+.cli-tool.yml
+.cli-tool.json
