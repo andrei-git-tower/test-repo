@@ -13,6 +13,10 @@ def read_file(file_path: str) -> str:
 
 def write_file(file_path: str, content: str) -> None:
     """Write contents to a file."""
+    # Ensure directory exists
+    directory = os.path.dirname(file_path)
+    if directory and not os.path.exists(directory):
+        os.makedirs(directory)
     with open(file_path, 'w') as f:
         f.write(content)
 
